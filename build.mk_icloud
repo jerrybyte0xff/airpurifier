@@ -1,0 +1,59 @@
+# Copyright (C) 2017 Marvell International Ltd.
+# All Rights Reserved.
+
+.PHONY : make_certs
+
+hap_icloud_ss-dir-y := $(d)
+
+pre-build-1: make_certs
+
+make_certs:
+	$(AT)$(t_python) $(t_mkcerts) $(hap_icloud_ss-dir-y)/certs $(hap_icloud_ss-dir-y)/src/hap_icloud_ca_pem.h
+
+BOARD_NAME = $(basename $(notdir $(BOARD_FILE)))
+
+FW_MAJOR_NUM := 0
+FW_MINOR_NUM := 9
+AIRPURIFIER_FW_VERSION := $(FW_MAJOR_NUM).$(FW_MINOR_NUM)
+
+ifneq ($(XIP),1)
+$(error "This accessory requires XIP=1")
+endif
+
+ifneq ($(ICLOUD),1)
+$(error "This accessory requires ICLOUD=1")
+endif
+
+ifneq ($(CONFIG_CPU_MW300),y)
+$(error "This accessory can be built only for MW300")
+endif
+
+# Revision version number in firmware revision
+#FW_REV_NUM :=
+ifneq ($(FW_REV_NUM),)
+	AIRPURIFIER_FW_VERSION := $(AIRPURIFIER_FW_VERSION).$(FW_REV_NUM)
+endif
+
+prj_name := hap_icloud_smart_airpurifier-$(AIRPURIFIER_FW_VERSION)
+
+exec-y += $(prj_name)
+
+# Info in firmware revision
+#FW_VER_INFO :=
+ifneq ($(FW_VER_INFO),)
+	AIRPURIFIER_FW_VERSION := $(AIRPURIFIER_FW_VERSION)\;$(FW_VER_INFO)
+endif
+
+AIRPURIFIER_FW_VERSION := \"$(AIRPURIFIER_FW_VERSION)\"
+
+$(prj_name)-objs-y := \
+		src/main.c \
+		src/smart_origins.c \
+		src/event_handler.c
+		# src/$(BOARD_NAME)/smart_switch_board.c \
+
+$(prj_name)-cflags-y := -DAPP_FW_VERSION=$(AIRPURIFIER_FW_VERSION) -I$(d)/src
+
+ifeq ($(BUILD_MODE),debug)
+$(prj_name)-cflags-y += -DAPPCONFIG_DEBUG_ENABLE
+endif
