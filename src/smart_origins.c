@@ -20,6 +20,7 @@
 
 
 #define UART_FROM_MCU_BUFFER_SIZE 50
+#define I2C_SLV_ADDR 0xC8
 
 /*===============================================================================
  *	Global Variables 
@@ -65,7 +66,7 @@ hap_acc_cfg_t accessory_cfg;
 
 /* UART handle*/
 mdev_t *uart_dev;
-
+mdev_t *i2c_1;
 /* UART Scan Thread handle*/
  os_thread_t uart_scan_thread_handle;
  os_thread_t app_thread_read;
@@ -147,7 +148,7 @@ void SendToPowerBoard(uint8_t * iic_From_MCU_Buffer)
 		 	hap_d("#####len error [%d]: \n", uiUart_From_MCU_Buffer_Temp[1]);
 		 	if (len > uiUart_From_MCU_Buffer_Temp[1]+2)
 		 		len = uiUart_From_MCU_Buffer_Temp[1]+2;
-		 	else
+		 	// else
 		 		// continue;
 		}
 		sum_check = 0;
@@ -155,7 +156,7 @@ void SendToPowerBoard(uint8_t * iic_From_MCU_Buffer)
 		{
 			sum_check = sum_check + uiUart_From_MCU_Buffer_Temp[i];
 		}
-		sum_check = ~sum_check + 1
+		sum_check = ~sum_check + 1;
 
 		if (uiUart_From_MCU_Buffer_Temp[0] != 0x55 || uiUart_From_MCU_Buffer_Temp[len-1] != sum_check)
 		{
@@ -208,9 +209,9 @@ void i2c_powe_bd_rd(os_thread_arg_t data)
 	while (1) 
 	{
 		/* enable I2C port */
-		i2c_drv_enable(i2c1);
+		i2c_drv_enable(i2c_1);
 
-		len = i2c_drv_read(i2c1, &iic_From_MCU_Buffer_Temp, UART_FROM_MCU_BUFFER_SIZE);
+		len = i2c_drv_read(i2c_1, &iic_From_MCU_Buffer_Temp, UART_FROM_MCU_BUFFER_SIZE);
 		hap_d("#####iic receive  [%s]: \n", iic_From_MCU_Buffer_Temp);
 
 	}
@@ -346,7 +347,7 @@ int hap_inintialization_process()
 	i2c_drv_init(I2C1_PORT);
 
 	/* I2C1_PORT is configured as slave */
-	i2c1 = i2c_drv_open(I2C1_PORT, I2C_DEVICE_SLAVE
+	i2c_1 = i2c_drv_open(I2C1_PORT, I2C_DEVICE_SLAVE
 			    | I2C_SLAVEADR(I2C_SLV_ADDR >> 1));
 
 	ret = os_thread_create(&app_thread_read,	/* thread handle */
