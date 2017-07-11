@@ -192,8 +192,8 @@ void SendToPowerBoard(uint8_t * iic_From_MCU_Buffer)
 
 				if (0 != uiUart_From_MCU_Buffer_Temp[5])
 				{
-					hap_val_set_uint8(&t_HapData, p_AirSensorData->rest_filter_indication);
-					hap_char_set_val(hc_rest_filter_indication, &t_HapData);
+					// hap_val_set_uint8(&t_HapData, p_AirSensorData->rest_filter_indication);
+					// hap_char_set_val(hc_rest_filter_indication, &t_HapData);
 				}
 
 			}
