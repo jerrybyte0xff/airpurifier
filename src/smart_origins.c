@@ -30,7 +30,6 @@ static hap_serv_t *hs_fliter_mantenance = NULL;
 static hap_serv_t *hs_air_purifier = NULL;
 
 
-
 hap_char_t *hc_status_active;
 hap_char_t *hc_current_air_purifier_state;
 hap_char_t *hc_target_air_purifier_state;
@@ -74,6 +73,7 @@ mdev_t *i2c_1;
 /* UART Scan Thread Stack*/
 os_thread_stack_define(uart_scan_thread_stack, 1024);
 static os_thread_stack_define(app_stack_read, 1024);
+os_semaphore_t i2c_sem;
 /*===============================================================================
  *	Internal Funvtion
  *===============================================================================*/
@@ -87,7 +87,7 @@ hap_serv_t *FilterMaintenanceServiceNew();
 #define RESET_TO_FACTORY_TIMEOUT	5000
 
 input_gpio_cfg_t ps_board_reset_to_factory_button = {
-	.gpio = GPIO_22, .type = GPIO_ACTIVE_LOW };
+	.gpio = GPIO_24, .type = GPIO_ACTIVE_LOW };
 
 	
 static void air_purifier_reset_to_factory_cb(int pin, void *data)
@@ -173,20 +173,27 @@ void SendToPowerBoard(uint8_t * iic_From_MCU_Buffer)
 		{
 			case 0x01 :
 			{
-				hap_val_set_int(&val, uiUart_From_MCU_Buffer_Temp[3]*33);
+				hap_val_set_float(&val, uiUart_From_MCU_Buffer_Temp[3]*33);
 				hap_char_set_val(hc_rotation_speed, &val);
 
 
 				if (4 == uiUart_From_MCU_Buffer_Temp[3])
 				{
-					hap_val_set_int(&val, 1);
+					hap_val_set_uint8(&val, 1);
 					hap_char_set_val(hc_target_air_purifier_state, &val);
 
 				}
 				else
 				{
-					hap_val_set_int(&val, 0);
+					hap_val_set_uint8(&val, 0);
 					hap_char_set_val(hc_target_air_purifier_state, &val);
+				}
+
+
+				if (0 != uiUart_From_MCU_Buffer_Temp[5])
+				{
+					hap_val_set_uint8(&t_HapData, p_AirSensorData->rest_filter_indication);
+					hap_char_set_val(hc_rest_filter_indication, &t_HapData);
 				}
 
 			}
@@ -213,6 +220,9 @@ void i2c_powe_bd_rd(os_thread_arg_t data)
 
 		len = i2c_drv_read(i2c_1, &iic_From_MCU_Buffer_Temp, UART_FROM_MCU_BUFFER_SIZE);
 		hap_d("#####iic receive  [%s]: \n", iic_From_MCU_Buffer_Temp);
+		os_semaphore_put(&i2c_sem);
+		os_thread_sleep(os_msec_to_ticks(1000));
+
 
 	}
 }
@@ -328,7 +338,7 @@ int hap_inintialization_process()
 		hap_critical_error(-CRIT_ERR_APP, NULL);
 	}
 	uart_drv_blocking_read(UART1_ID, true);
-	uart_dev = uart_drv_open(UART1_ID, 38400);
+	uart_dev = uart_drv_open(UART1_ID, 9600);
 	
 	if (uart_dev == NULL)
 	{
@@ -342,6 +352,7 @@ int hap_inintialization_process()
 				0,
 				&uart_scan_thread_stack,
 				OS_PRIO_4);
+#if 1
 
 	/* Initialize I2C Driver */
 	i2c_drv_init(I2C1_PORT);
@@ -349,6 +360,9 @@ int hap_inintialization_process()
 	/* I2C1_PORT is configured as slave */
 	i2c_1 = i2c_drv_open(I2C1_PORT, I2C_DEVICE_SLAVE
 			    | I2C_SLAVEADR(I2C_SLV_ADDR >> 1));
+	#define wake1 "wakeup"
+	int status = os_semaphore_create(&i2c_sem, wake1);
+	os_semaphore_get(&i2c_sem, OS_WAIT_FOREVER);
 
 	ret = os_thread_create(&app_thread_read,	/* thread handle */
 			"i2c_powe_bd_rd",	/* thread name */
@@ -356,7 +370,7 @@ int hap_inintialization_process()
 			0,	/* argument */
 			&app_stack_read,	/* stack */
 			OS_PRIO_4);	/* priority - medium low */
-
+#endif
 
 	/* Create a new accessory with the same configuration as above
 	 * and the identify routine. */
@@ -581,7 +595,7 @@ hap_serv_t *AirPurifierServiceNew()
 	}
 
 
-	hc = hap_char_uint8_new(HAP_CHAR_TYPE_TARGET_AIR_PURIFIER_STATE,0, PERM_READ | PERM_EVENT_NOTIFY);
+	hc = hap_char_uint8_new(HAP_CHAR_TYPE_TARGET_AIR_PURIFIER_STATE,0, PERM_RW | PERM_EVENT_NOTIFY);
 	hc_target_air_purifier_state = hc;
 
 	if (!hc)
@@ -732,7 +746,7 @@ hap_serv_t *FilterMaintenanceServiceNew()
 		return NULL;
 	}
 
-	hc = hap_char_uint8_new(HAP_CHAR_TYPE_REST_FILTER_INDICATION,0, PERM_WRITE | PERM_EVENT_NOTIFY);
+	hc = hap_char_uint8_new(HAP_CHAR_TYPE_REST_FILTER_INDICATION,0, PERM_WRITE);
 	hc_rest_filter_indication = hc;
 	if (!hc)
 		return NULL;
