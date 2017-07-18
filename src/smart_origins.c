@@ -131,6 +131,7 @@ void SendToPowerBoard(uint8_t * iic_From_MCU_Buffer)
 	// char cReadByte[100];
 
 	uint8_t  uiUart_From_MCU_Buffer_Temp[UART_FROM_MCU_BUFFER_SIZE];
+	uint8_t  uiUart_From_MCU_Buffer[UART_FROM_MCU_BUFFER_SIZE];
 	uint8_t CommandValue=0;
 	hap_val_t val;
 	len=0;
@@ -143,6 +144,10 @@ void SendToPowerBoard(uint8_t * iic_From_MCU_Buffer)
 		{
 			continue;
 
+		}
+		if (len < (uiUart_From_MCU_Buffer_Temp[1]+2))
+		{
+			continue;
 		}
 	
 
@@ -186,12 +191,18 @@ void SendToPowerBoard(uint8_t * iic_From_MCU_Buffer)
 		}
 		len=0;
 
+		
+
 
 		CommandValue = uiUart_From_MCU_Buffer_Temp[2];
 		switch (CommandValue)
 		{
 			case 0x01 :
 			{
+				if (uiUart_From_MCU_Buffer_Temp[3] == uiUart_From_MCU_Buffer[3])
+				{
+					break;
+				}
 				hap_val_set_float(&val, uiUart_From_MCU_Buffer_Temp[3]*33);
 				hap_char_set_val(hc_rotation_speed, &val);
 
@@ -223,6 +234,7 @@ void SendToPowerBoard(uint8_t * iic_From_MCU_Buffer)
 
 		}
 		SendToPowerBoard(uiUart_From_MCU_Buffer_Temp);
+		memcpy(uiUart_From_MCU_Buffer,uiUart_From_MCU_Buffer_Temp,UART_FROM_MCU_BUFFER_SIZE);
 
 	}
 
@@ -343,11 +355,11 @@ int hap_inintialization_process()
 	// hap_d("serial_num of device: %s \n",shared_ldtp->device.dsn);
 
 //	/* Change The MAX number of The Services, Characteristics and Accessories */
-	// hap_get_configuration(&hap_cfg);
-	// hap_cfg.num_acc = HAP_ACCESSORY_NO_MAX;
-	// hap_cfg.num_serv = HAP_SERVICES_NO_MAX;
-	// hap_cfg.num_char = HAP_CHARACTERISTICS_NO_MAX;
-	// hap_set_configuration(&hap_cfg);
+	hap_get_configuration(&hap_cfg);
+	hap_cfg.num_acc = HAP_ACCESSORY_NO_MAX;
+	hap_cfg.num_serv = HAP_SERVICES_NO_MAX;
+	hap_cfg.num_char = HAP_CHARACTERISTICS_NO_MAX;
+	hap_set_configuration(&hap_cfg);
 	
 
 
@@ -389,7 +401,7 @@ int hap_inintialization_process()
 				0,
 				&uart_scan_thread_stack,
 				OS_PRIO_4);
-#if 1
+#if 0
 
 	/* Initialize I2C Driver */
 	i2c_drv_init(I2C1_PORT);
@@ -429,7 +441,7 @@ int hap_inintialization_process()
 //		hap_e("#####hap_acc_info_add_sw_ver error\n");
 //		hap_critical_error(-CRIT_ERR_APP, NULL);
 //	}
-
+#if 1
 	/* Create The Air Purifier  Service */
 	hap_d("AirPurifier ServiceNew");
 	hs = AirPurifierServiceNew();
@@ -449,7 +461,7 @@ int hap_inintialization_process()
 		hap_serv_thermostat_delete(hs);
 		hap_critical_error(-CRIT_ERR_APP, NULL);
 	}
-
+#endif
 
 #if 1
 
@@ -601,7 +613,10 @@ hap_serv_t *AirPurifierServiceNew()
    /*-------------------------------*
 	* Create characteristics
 	*-------------------------------*/
-	hc_status_active = hap_char_status_active_new(0);
+#if 1
+	// hc_status_active = hap_char_status_active_new(0);
+	 hc_status_active = hap_char_bool_new(HAP_CHAR_TYPE_ACTIVE,
+			0, PERM_RW | PERM_EVENT_NOTIFY);
 
 	ret = hap_serv_add_char(hs_air_purifier, hc_status_active);
 	if (ret != WM_SUCCESS) 
@@ -649,6 +664,7 @@ hap_serv_t *AirPurifierServiceNew()
 		hap_serv_delete(hs_air_purifier);
 		return NULL;
 	}
+
 
 	hc = hap_char_float_new(HAP_CHAR_TYPE_ROTATION_SPEED,0, PERM_RW | PERM_EVENT_NOTIFY);
 	hc_rotation_speed = hc;
@@ -698,7 +714,7 @@ hap_serv_t *AirPurifierServiceNew()
 		goto err;
 	}
 
-
+#endif
 
 	return hs_air_purifier;
 err:

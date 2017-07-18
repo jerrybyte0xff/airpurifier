@@ -1,5 +1,5 @@
 boot2    /home/jerry/source_code/homekit/hap_sdk_bundle-2.0.17/bin/mw300_defconfig/boot2.bin
-mfg      /home/jerry/source_code/homekit/hap_sdk_bundle-2.0.17/bin/mw300_defconfig/mw300_rd/mfg-456-03-598-hap_smart_AIRPURIFIER-1.0.bin
+mfg      /home/jerry/source_code/homekit/hap_sdk_bundle-2.0.17/bin/mw300_defconfig/mw300_rd/mfg-101-00-101-hap_smart_AIRPURIFIER-1.0.bin
 mcufw    /home/jerry/source_code/homekit/hap_sdk_bundle-2.0.17/bin/mw300_defconfig/mw300_rd/hap_smart_AIRPURIFIER-1.0.bin
 wififw   /home/jerry/source_code/homekit/hap_sdk_bundle-2.0.17/wifi-firmware/mw30x/mw30x_uapsta_14.76.36.p103.bin
 ed_data  /home/jerry/source_code/homekit/hap_sdk_bundle-2.0.17/bin/mw300_defconfig/mw300_rd/ed25519-data.bin

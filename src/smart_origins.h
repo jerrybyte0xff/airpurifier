@@ -88,6 +88,9 @@
 /** The serial-number of this accessory. */
 #define HAP_ACCESSORY_CFG_SERIAL_NO						"123456789"
 #define HAP_ACCESSORY_CFG_SERIAL_NO_MAX					20
+
+#define HAP_CHAR_TYPE_ACTIVE			"000000B0-0000-1000-8000-0026BB765291"
+
 /***********************************************************************************/
 /*  smart origin crit_err  */
 typedef enum _SMART_ORIGIN_CRIT_ERR 
