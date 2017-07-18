@@ -20,7 +20,7 @@
 
 
 #define UART_FROM_MCU_BUFFER_SIZE 50
-#define I2C_SLV_ADDR 0xC8
+#define I2C_SLV_ADDR 0xC0
 
 /*===============================================================================
  *	Global Variables 
@@ -133,30 +133,48 @@ void SendToPowerBoard(uint8_t * iic_From_MCU_Buffer)
 	uint8_t  uiUart_From_MCU_Buffer_Temp[UART_FROM_MCU_BUFFER_SIZE];
 	uint8_t CommandValue=0;
 	hap_val_t val;
+	len=0;
 	while(1)
 	{
 
 		memset(uiUart_From_MCU_Buffer_Temp, 0, UART_FROM_MCU_BUFFER_SIZE);
-		len = uart_drv_read(uart_dev, uiUart_From_MCU_Buffer_Temp, UART_FROM_MCU_BUFFER_SIZE);
+		len = uart_drv_read(uart_dev, uiUart_From_MCU_Buffer_Temp+len, UART_FROM_MCU_BUFFER_SIZE)+len;
+		if(4 > len)
+		{
+			continue;
+
+		}
+	
+
+
+		for (int i=0;i<len;i++)
+		{
+
+			hap_d("#####uart_scan_task receive len:%d ddd [%x]: \n", len,uiUart_From_MCU_Buffer_Temp[i]);
+		}
 		 
-		hap_d("#####uart_scan_task receive  [%s]: \n", uiUart_From_MCU_Buffer_Temp);
+		// hap_d("#####uart_scan_task receive  [%s]: \n", uiUart_From_MCU_Buffer_Temp);
 		
 		/*   Data Check  */
+		if (0x55 != uiUart_From_MCU_Buffer_Temp[0])
+		{
+		 	hap_d("#####head error [%d]: \n", uiUart_From_MCU_Buffer_Temp[1]);
+			continue;
+		}
 
 		 if (len != (uiUart_From_MCU_Buffer_Temp[1]+2))
 		{		
 		 	hap_d("#####len error [%d]: \n", uiUart_From_MCU_Buffer_Temp[1]);
 		 	if (len > uiUart_From_MCU_Buffer_Temp[1]+2)
 		 		len = uiUart_From_MCU_Buffer_Temp[1]+2;
-		 	// else
-		 		// continue;
+		 	else
+		 		continue;
 		}
 		sum_check = 0;
-		for (int i = 2; i < len-1; i++)
+		for (int i = 1; i < len-1; i++)
 		{
 			sum_check = sum_check + uiUart_From_MCU_Buffer_Temp[i];
 		}
-		sum_check = ~sum_check + 1;
 
 		if (uiUart_From_MCU_Buffer_Temp[0] != 0x55 || uiUart_From_MCU_Buffer_Temp[len-1] != sum_check)
 		{
@@ -166,6 +184,7 @@ void SendToPowerBoard(uint8_t * iic_From_MCU_Buffer)
 			
 		 // uart_drv_write(uart_dev, cReadByte,sizeof(cReadByte));
 		}
+		len=0;
 
 
 		CommandValue = uiUart_From_MCU_Buffer_Temp[2];
@@ -199,6 +218,7 @@ void SendToPowerBoard(uint8_t * iic_From_MCU_Buffer)
 			}
 			break;
 			default:
+
 			break;
 
 		}
@@ -212,16 +232,33 @@ void i2c_powe_bd_rd(os_thread_arg_t data)
 {
 	uint8_t  iic_From_MCU_Buffer_Temp[UART_FROM_MCU_BUFFER_SIZE];
 	int len;
-
+	// unsigned char iic_write[4] = {0x55,0x04,0xa1,0xa5}; 
+	unsigned char iic_write[15] = {0x54,0x0f,0xa5,0x30,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00}; 
+	iic_write[14]=0xe4;
 	while (1) 
 	{
 		/* enable I2C port */
 		i2c_drv_enable(i2c_1);
+		i2c_drv_write(i2c_1, iic_write, 15);
+		
+		// os_thread_sleep(os_msec_to_ticks(1000));
 
-		len = i2c_drv_read(i2c_1, &iic_From_MCU_Buffer_Temp, UART_FROM_MCU_BUFFER_SIZE);
-		hap_d("#####iic receive  [%s]: \n", iic_From_MCU_Buffer_Temp);
-		os_semaphore_put(&i2c_sem);
+		len = i2c_drv_read(i2c_1, iic_From_MCU_Buffer_Temp, UART_FROM_MCU_BUFFER_SIZE);
+		if (len==0)
+			continue;
+
+		hap_d("#####iic receive num [%d]: \n", len);
+		for(int i=0; i < len; i++)
+		{
+			hap_d("#####iic receive  [%x]: \n", iic_From_MCU_Buffer_Temp[i]);
+
+
+		}
+
+		// os_semaphore_put(&i2c_sem);
 		os_thread_sleep(os_msec_to_ticks(1000));
+
+
 
 
 	}
