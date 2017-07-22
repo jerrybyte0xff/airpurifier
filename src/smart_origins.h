@@ -144,6 +144,7 @@ typedef  struct _HAP_AIR_T
 	uint8_t filter_change_indication;
 	float filter_life_level;
 	uint8_t rest_filter_indication;
+	uint8_t wifi_status;
 
 }HAP_AIR_T;
 

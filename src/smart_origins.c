@@ -28,7 +28,7 @@
 /* Services of The Acceesory */
 static hap_serv_t *hs_fliter_mantenance = NULL;
 static hap_serv_t *hs_air_purifier = NULL;
-
+HAP_AIR_T  t_AirSensorData;
 
 hap_char_t *hc_status_active;
 hap_char_t *hc_current_air_purifier_state;
@@ -117,6 +117,56 @@ void SendToPowerBoard(uint8_t * iic_From_MCU_Buffer)
 }
 
 
+void AnalyzeControlData(uint8_t* Uart_From_MCU_Buffer)
+{
+
+	uint8_t CommandValue = Uart_From_MCU_Buffer[2];
+	const uint8_t wifi_status_info[]={0x55,0x04,0x80,0x01,00};
+
+	switch (CommandValue)
+	{
+		case 0x01 :
+		{
+			if (t_AirSensorData.rotation_speed != Uart_From_MCU_Buffer[3])
+			{
+				if (Uart_From_MCU_Buffer[3] == 0x77)
+				{
+					t_AirSensorData.rotation_speed++;
+
+				}
+				else
+				{
+					t_AirSensorData.rotation_speed = Uart_From_MCU_Buffer[3];
+				}
+
+				if (t_AirSensorData.rotation_speed <= 100)
+				{
+					hap_val_set_float(&val, uiUart_From_MCU_Buffer_Temp[3]);
+					hap_char_set_val(hc_rotation_speed, &val);
+
+				}
+				
+
+			}
+			break;
+
+
+			
+		}
+		case 0x04:
+		{
+			uart_drv_write(uart_dev, wifi_status_info,sizeof(wifi_status_info));
+			break;
+		}
+
+
+		default:
+			break;
+	}
+
+
+}
+
 /*  Brief: This is the Function of uart scan thread 
 *         This Function Get The State Of Device From The Information 
 		  Transformed From Uart. 
@@ -129,6 +179,7 @@ void SendToPowerBoard(uint8_t * iic_From_MCU_Buffer)
 	int len = 0;
 	uint8_t sum_check = 0;
 	// char cReadByte[100];
+	const uint8_t read_info_buffer[]={0x55,0x02,0x02,0x02};
 
 	uint8_t  uiUart_From_MCU_Buffer_Temp[UART_FROM_MCU_BUFFER_SIZE];
 	uint8_t  uiUart_From_MCU_Buffer[UART_FROM_MCU_BUFFER_SIZE];
@@ -137,16 +188,21 @@ void SendToPowerBoard(uint8_t * iic_From_MCU_Buffer)
 	len=0;
 	while(1)
 	{
+		uart_drv_write(uart_dev, read_info_buffer,sizeof(read_info_buffer));
 
+		os_thread_sleep(os_msec_to_ticks(1000));
 		memset(uiUart_From_MCU_Buffer_Temp, 0, UART_FROM_MCU_BUFFER_SIZE);
 		len = uart_drv_read(uart_dev, uiUart_From_MCU_Buffer_Temp+len, UART_FROM_MCU_BUFFER_SIZE)+len;
 		if(4 > len)
 		{
+			hap_d("#####uart_scan_task receive line %d len:%d dd]: \n",__LINE__);
+
 			continue;
 
 		}
 		if (len < (uiUart_From_MCU_Buffer_Temp[1]+2))
 		{
+			hap_d("#####uart_scan_task receive line %d len:%d dd]: \n",__LINE__);
 			continue;
 		}
 	
@@ -176,7 +232,7 @@ void SendToPowerBoard(uint8_t * iic_From_MCU_Buffer)
 		 		continue;
 		}
 		sum_check = 0;
-		for (int i = 1; i < len-1; i++)
+		for (int i = 2; i < len-1; i++)
 		{
 			sum_check = sum_check + uiUart_From_MCU_Buffer_Temp[i];
 		}
@@ -203,21 +259,11 @@ void SendToPowerBoard(uint8_t * iic_From_MCU_Buffer)
 				{
 					break;
 				}
-				hap_val_set_float(&val, uiUart_From_MCU_Buffer_Temp[3]*33);
+				hap_val_set_float(&val, uiUart_From_MCU_Buffer_Temp[3]);
 				hap_char_set_val(hc_rotation_speed, &val);
 
 
-				if (4 == uiUart_From_MCU_Buffer_Temp[3])
-				{
-					hap_val_set_uint8(&val, 1);
-					hap_char_set_val(hc_target_air_purifier_state, &val);
-
-				}
-				else
-				{
-					hap_val_set_uint8(&val, 0);
-					hap_char_set_val(hc_target_air_purifier_state, &val);
-				}
+				
 
 
 				if (0 != uiUart_From_MCU_Buffer_Temp[5])
@@ -244,14 +290,14 @@ void i2c_powe_bd_rd(os_thread_arg_t data)
 {
 	uint8_t  iic_From_MCU_Buffer_Temp[UART_FROM_MCU_BUFFER_SIZE];
 	int len;
-	// unsigned char iic_write[4] = {0x55,0x04,0xa1,0xa5}; 
-	unsigned char iic_write[15] = {0x54,0x0f,0xa5,0x30,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00}; 
-	iic_write[14]=0xe4;
+	unsigned char iic_write[4] = {0x55,0x04,0xa1,0xa5}; 
+	// unsigned char iic_write[15] = {0x54,0x0f,0xa5,0x30,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00}; 
+	// iic_write[14]=0xe4;
 	while (1) 
 	{
 		/* enable I2C port */
-		i2c_drv_enable(i2c_1);
-		i2c_drv_write(i2c_1, iic_write, 15);
+		// i2c_drv_enable(i2c_1);
+		i2c_drv_write(i2c_1, iic_write, 6);
 		
 		// os_thread_sleep(os_msec_to_ticks(1000));
 
@@ -379,6 +425,8 @@ int hap_inintialization_process()
 
      configure_reset_to_factory_button();
 
+    uart_drv_timeout(UART1_ID, 1000,1000);
+
      /* Init the UART */
 	ret = uart_drv_init(UART1_ID, UART_8BIT);
 	if (ret != WM_SUCCESS)
@@ -401,14 +449,16 @@ int hap_inintialization_process()
 				0,
 				&uart_scan_thread_stack,
 				OS_PRIO_4);
-#if 0
+#if 1
 
 	/* Initialize I2C Driver */
 	i2c_drv_init(I2C1_PORT);
+	i2c_drv_timeout(I2C1_PORT, 1000, 1000);
+	i2c_1 = i2c_drv_open(I2C1_PORT, I2C_SLAVEADR(I2C_SLV_ADDR >> 1));
 
 	/* I2C1_PORT is configured as slave */
-	i2c_1 = i2c_drv_open(I2C1_PORT, I2C_DEVICE_SLAVE
-			    | I2C_SLAVEADR(I2C_SLV_ADDR >> 1));
+	// i2c_1 = i2c_drv_open(I2C1_PORT, I2C_DEVICE_SLAVE
+	// 		    | I2C_SLAVEADR(I2C_SLV_ADDR >> 1));
 	#define wake1 "wakeup"
 	int status = os_semaphore_create(&i2c_sem, wake1);
 	os_semaphore_get(&i2c_sem, OS_WAIT_FOREVER);
