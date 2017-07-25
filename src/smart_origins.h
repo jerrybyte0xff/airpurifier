@@ -133,7 +133,7 @@ typedef enum _BATTERY_STATUS
 }BATTERY_STATUS;
 
 /*  Air Data Struct*/
-typedef  struct _HAP_AIR_T
+typedef  struct _HAP_AIRPURIFIER_T
 {
 	float  rotation_speed;
 	uint8_t air_status_active;
@@ -146,7 +146,14 @@ typedef  struct _HAP_AIR_T
 	uint8_t rest_filter_indication;
 	uint8_t wifi_status;
 
-}HAP_AIR_T;
+} HAP_AIRPURIFIER_T;
+
+typedef enum _COMMAND_TYPE
+{
+	ROTATION_SPEED_CHANGE=0,
+	WIFI_STATUS_INFO,
+	RESEVERD,
+}COMMAND_TYPE;
 
 /*  Battery Data Struct*/
 typedef struct _HAP_BAT_T 
@@ -183,7 +190,7 @@ extern hap_serv_t *AirPurifierServiceNew();
 extern hap_serv_t *FilterMaintenanceServiceNew();
 extern void reset_to_factory(int pin, void *data);
 //extern  int get_dev_info_data(DEV_STATUS_DATA * dev_status);
-extern int hap_air_update(HAP_AIR_T* p_AirSensorData);
+extern int hap_air_update(HAP_AIRPURIFIER_T* p_AirSensorData);
 
 
 extern int hap_inintialization_process();
@@ -192,6 +199,7 @@ void 	  hap_set_wlan_country_code(char *code);
  *        Global Variables Extern 
  *****************************************************************************/
 extern hap_serv_t *hs_upgrade;
+extern HAP_AIRPURIFIER_T  t_AirSensorData;
 /***********************************************************************************/
 
 #endif
