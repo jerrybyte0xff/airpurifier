@@ -41,7 +41,7 @@ void hap_event_sta_connected(void *data)
 	 * Process
 	 *-------------------------------*/
 	/* TODO: send infor */
-	 t_AirSensorData.wifi_status = 1;
+	 t_AirSensorData.wifi_status = 2;
 	hap_d("Network Connected.....");		
 	/* resister the http  hander */
 #if 0
@@ -70,7 +70,7 @@ void hap_event_sta_connected(void *data)
 void hap_event_sta_connect_failed(void *data)
 {
 	/* TODO: send infor */
-	t_AirSensorData.wifi_status = 0;
+	t_AirSensorData.wifi_status = 4;
 	hap_d(" Network Connected Fail\r\n");
 	
 }
@@ -84,7 +84,7 @@ void hap_event_sta_connect_failed(void *data)
 ****************************************************************************/
 void hap_event_sta_connecting(void *data)
 {
-	
+	t_AirSensorData.wifi_status = 1;
 }
 
 void hap_event_sta_link_lost(void *data)

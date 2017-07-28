@@ -82,7 +82,7 @@
 /** The name of this accessory. */
 #define HAP_ACCESSORY_CFG_NAME							"AirPurifier"
 /** The name of the manufacturer. */
-#define HAP_ACCESSORY_CFG_MANUFACTURE							"Smart Origins"
+#define HAP_ACCESSORY_CFG_MANUFACTURE					"Smart Origins"
 /** The model of this accessory. */
 #define HAP_ACCESSORY_CFG_MODEL							"AirPurifier"
 /** The serial-number of this accessory. */

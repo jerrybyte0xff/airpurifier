@@ -34,7 +34,7 @@ $(prj_name)-objs-y := \
 
 $(prj_name)-cflags-y := -DAPP_FW_VERSION=$(AIRPURIFIER_FW_VERSION) -I$(d)/src
 
-$(prj_name)-board-y := smart_origins-V1.0.c
+$(prj_name)-board-y := smart-blueair-V1.0.c
 
 ifeq ($(BUILD_MODE),debug)
 $(prj_name)-cflags-y += -DAPPCONFIG_DEBUG_ENABLE

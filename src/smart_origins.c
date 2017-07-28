@@ -92,9 +92,12 @@ input_gpio_cfg_t ps_board_reset_to_factory_button = {
 	
 static void air_purifier_reset_to_factory_cb(int pin, void *data)
 {
-	psm_erase_and_init();
-	pm_reboot_soc();
+	hap_mutex_get(OS_WAIT_FOREVER);
+	// led_on(ps_board_reset_led);
+	hap_reset_to_factory();
+	hap_mutex_put();
 }
+
 
 void configure_reset_to_factory_button()
 {
@@ -108,6 +111,7 @@ int air_purifierwrite(hap_char_t *chars[], hap_val_t vals[],
 {
 	int iCount;
 	hap_val_t *val;
+	hap_val_t *val_set;
 	char uiUart_To_MCU_Buffer[4];
 	uiUart_To_MCU_Buffer[0] = 0xff;
 	int iUartWriteLen = 0;
@@ -125,8 +129,11 @@ int air_purifierwrite(hap_char_t *chars[], hap_val_t vals[],
 			uiUart_To_MCU_Buffer[2] = val->v.f;
 			t_AirSensorData.rotation_speed = val->v.f;
 			// iUartWriteLen = uart_drv_write(uart_dev, uiUart_To_MCU_Buffer,sizeof(uiUart_To_MCU_Buffer));
-			hap_d("water fountain switch set : [%d]\n", val->v.b);
+			hap_d("rotation_speed set : [%d]\n", val->v.b);
 			status_codes[iCount] = HAP_E_H_NO_ERROR;
+
+					
+
 			
 		} 
 		else if (!strcmp(hap_char_get_type(chars[iCount]),
@@ -134,10 +141,27 @@ int air_purifierwrite(hap_char_t *chars[], hap_val_t vals[],
 		{
 			uiUart_To_MCU_Buffer[1] = 0x02;
 			uiUart_To_MCU_Buffer[2] = val->v.i;
+			t_AirSensorData.lock_physical_controls = val->v.i;
 			// iUartWriteLen = uart_drv_write(uart_dev, uiUart_To_MCU_Buffer,sizeof(uiUart_To_MCU_Buffer));
-			hap_d("target_temperatureset : [%d]\n", val->v.i);
+			hap_d("lock_physical_controls : [%d]\n", val->v.i);
 			status_codes[iCount] = HAP_E_H_NO_ERROR;
 		} 
+		else if (!strcmp(hap_char_get_type(chars[iCount]),
+				 HAP_CHAR_TYPE_REST_FILTER_INDICATION)) 
+		{
+			uiUart_To_MCU_Buffer[1] = 0x02;
+			uiUart_To_MCU_Buffer[2] = val->v.i;
+			t_AirSensorData.rest_filter_indication = val->v.i;
+			hap_val_t *val;
+			hap_val_set_float(&val,0);
+			hap_char_set_val(hc_rest_filter_indication, &val);
+					
+			// iUartWriteLen = uart_drv_write(uart_dev, uiUart_To_MCU_Buffer,sizeof(uiUart_To_MCU_Buffer));
+			hap_d("lock_physical_controls : [%d]\n", val->v.i);
+			status_codes[iCount] = HAP_E_H_NO_ERROR;
+		} 
+
+		
 		// else if (!strcmp(hap_char_get_type(chars[iCount]),
 		// 		 HAP_CHAR_TYPE_WF_TARGET_WATER_YIELD)) 
 		// {
@@ -165,6 +189,22 @@ int air_purifierwrite(hap_char_t *chars[], hap_val_t vals[],
 		 */
 		hap_char_set_val(chars[iCount], val);
 		SendToControlBoard(ROTATION_SPEED_CHANGE);
+		t_AirSensorData.rest_filter_indication = 0;
+
+
+		if (0 == t_AirSensorData.rotation_speed && t_AirSensorData.current_air_purifier_state != 1)
+		{
+			t_AirSensorData.current_air_purifier_state =1;
+			hap_val_set_uint8(&val_set, t_AirSensorData.current_air_purifier_state);
+			hap_char_set_val(hc_current_air_purifier_state, &val_set);
+
+		}
+		else if (0 != t_AirSensorData.rotation_speed && t_AirSensorData.current_air_purifier_state != 2)
+		{
+			t_AirSensorData.current_air_purifier_state =2;
+			hap_val_set_uint8(&val_set, t_AirSensorData.current_air_purifier_state);
+			hap_char_set_val(hc_current_air_purifier_state, &val_set);
+		}	
 
 		
 	}
@@ -184,8 +224,9 @@ void SendToPowerBoard(uint8_t * iic_From_MCU_Buffer)
 }
 void SendToControlBoard(COMMAND_TYPE command)
 {
+	const uint8_t iic_write[4] = {0x55,0x02,0xa1,0xa1}; 
 	uint8_t CommandBuffer[15]={0x55,0x0d,0x03};
-	uint8_t sum_check;
+	uint8_t sum_check = 0;
 
 	switch (command)
 	{
@@ -196,6 +237,8 @@ void SendToControlBoard(COMMAND_TYPE command)
 			CommandBuffer[3]=(uint8_t)t_AirSensorData.rotation_speed;
 			CommandBuffer[4]=(uint8_t)t_AirSensorData.filter_change_indication;
 			CommandBuffer[6]=(uint8_t)t_AirSensorData.lock_physical_controls;
+
+			CommandBuffer[11]=(uint8_t)t_AirSensorData.wifi_status;
 			for (uint8_t i =2; i < 14; i++)
 			{
 				sum_check+=CommandBuffer[i];
@@ -205,31 +248,41 @@ void SendToControlBoard(COMMAND_TYPE command)
 
 
 			CommandBuffer[2]=0x03;
+			hap_d("#####uart_drv_write  ");
+
 			for (int i=0;i<15;i++)
 			{
 
-				hap_d("#####uart_drv_write receive   ddd [%x]: \n",CommandBuffer[i]);
+				hap_d("[%x]",CommandBuffer[i]);
 			}
+			hap_d("\n#####uart_drv_write data  over: \n");
 
 			uart_drv_write(uart_dev, CommandBuffer,sizeof(CommandBuffer));
+			// hap_d("\n#####i2c_drv_write data  over: \n");
 
-			for (int i=0;i<15;i++)
-			{
 
-				hap_d("#####i2c_drv_write receive   ddd [%x]: \n",CommandBuffer[i]);
-			}
+			// for (int i=0;i<15;i++)
+			// {
+
+			// 	hap_d("#####i2c_drv_write receive   ddd [%x]: \n",CommandBuffer[i]);
+			// }
 			CommandBuffer[2]=0xa5;
 			i2c_drv_write(i2c_1, CommandBuffer,sizeof(CommandBuffer));
-			os_thread_sleep(os_msec_to_ticks(1000));
+			// os_thread_sleep(os_msec_to_ticks(500));
+			i2c_drv_write(i2c_1, iic_write,sizeof(iic_write));
+			os_thread_sleep(os_msec_to_ticks(200));
 
 			i2c_drv_read(i2c_1, CommandBuffer, 15);
+			hap_d("#####iic receive  ");
 			
 			for(int i=0; i < 15; i++)
 			{
-				hap_d("#####iic receive  [%x]: \n", CommandBuffer[i]);
+				hap_d("[%x]", CommandBuffer[i]);
 
 
 			}
+			hap_d("\n iic receive over ");
+
 			break;
 
 
@@ -266,7 +319,7 @@ void AnalyzeControlData(uint8_t* Uart_From_MCU_Buffer,uint8_t command_resource,H
 					}
 					if (gearvalue == 4)
 					{
-						if (p_AirSensorData->wifi_status == 1)
+						if (p_AirSensorData->wifi_status == 2)
 						{
 							p_AirSensorData->rotation_speed = 50;
 							p_AirSensorData->target_air_purifier_state = 1;
@@ -299,7 +352,7 @@ void AnalyzeControlData(uint8_t* Uart_From_MCU_Buffer,uint8_t command_resource,H
 				if (p_AirSensorData->rotation_speed <= 100)
 				{
 
-	hap_d("Uart_From_MCU_Buffer : CommandValue [%d] v : \n", (int)p_AirSensorData->rotation_speed);
+	hap_d("Uart_From_MCU_Buffer : rotation_speed [%d]current_air_purifier_state[%d] v : \n", (int)p_AirSensorData->rotation_speed,(int)p_AirSensorData->current_air_purifier_state);
 					hap_val_set_float(&val, p_AirSensorData->rotation_speed);
 					hap_char_set_val(hc_rotation_speed, &val);
 					
@@ -311,35 +364,46 @@ void AnalyzeControlData(uint8_t* Uart_From_MCU_Buffer,uint8_t command_resource,H
 				hap_val_set_uint8(&val, p_AirSensorData->target_air_purifier_state);
 				hap_char_set_val(hc_target_air_purifier_state, &val);
 
-				if (0 == p_AirSensorData->rotation_speed && p_AirSensorData->current_air_purifier_state == 2)
+				if (0 == p_AirSensorData->rotation_speed && p_AirSensorData->current_air_purifier_state != 1)
 				{
 					p_AirSensorData->current_air_purifier_state =1;
 					hap_val_set_uint8(&val, p_AirSensorData->current_air_purifier_state);
 					hap_char_set_val(hc_current_air_purifier_state, &val);
 
 				}
-				else if (0 != p_AirSensorData->rotation_speed && p_AirSensorData->current_air_purifier_state == 1)
+				else if (0 != p_AirSensorData->rotation_speed && p_AirSensorData->current_air_purifier_state != 2)
 				{
 					p_AirSensorData->current_air_purifier_state =2;
 					hap_val_set_uint8(&val, p_AirSensorData->current_air_purifier_state);
 					hap_char_set_val(hc_current_air_purifier_state, &val);
-				}
-				
-
-
-
-				
+				}		
 
 			}
+
 			if (p_AirSensorData->filter_life_level != (float)Uart_From_MCU_Buffer[10] && (1 ==command_resource))
 			{
+					
 				hap_val_set_float(&val, (float) Uart_From_MCU_Buffer[10]);
 				hap_char_set_val(hc_filter_life_level, &val);
+				p_AirSensorData->filter_life_level = (float) Uart_From_MCU_Buffer[10];
 
+				if (p_AirSensorData->filter_life_level >= 99 && 0 == p_AirSensorData->filter_change_indication)
+				{
+					hap_val_set_uint8(&val, 1);
+					hap_char_set_val(hc_filter_change_indication, &val);
+					p_AirSensorData->filter_change_indication = 1;
+
+				}
+				else if (p_AirSensorData->filter_life_level <= 99 && 1 == p_AirSensorData->filter_change_indication)
+				{
+					hap_val_set_uint8(&val, 0);
+					hap_char_set_val(hc_filter_change_indication, &val);
+					p_AirSensorData->filter_change_indication = 0;
+				}
 			}
-			break;
 
 			SendToControlBoard(ROTATION_SPEED_CHANGE);
+			break;
 
 
 			
@@ -349,6 +413,16 @@ void AnalyzeControlData(uint8_t* Uart_From_MCU_Buffer,uint8_t command_resource,H
 		case 0x04:
 		{
 			uart_drv_write(uart_dev, wifi_status_info,sizeof(wifi_status_info));
+			break;
+		}
+		case 0x80:
+		{
+					
+			// hap_mutex_get(OS_WAIT_FOREVER);
+			// hap_restart_provisioning();
+			// hap_reboot_device();
+			// hap_mutex_put();
+			air_purifier_reset_to_factory_cb(1,NULL);
 			break;
 		}
 
@@ -390,9 +464,10 @@ void AnalyzeControlData(uint8_t* Uart_From_MCU_Buffer,uint8_t command_resource,H
 		/* Get Data */
 			
 		len = uart_drv_read(uart_dev, &BufferValue, 1);
-		if (0 != len)
-		hap_d("#####uart_scan_task receiving...BufferValue%x Bufferlength %d.BufferSite%d:",BufferValue,Bufferlength,BufferSite);
-		if (0 == len)
+
+		// if (0 != len)
+		// hap_d("#####uart_scan_task receiving...BufferValue%x Bufferlength %d.BufferSite%d:",BufferValue,Bufferlength,BufferSite);
+		if (1 != len)
 		{
 			os_thread_sleep(os_msec_to_ticks(500));
 			hap_d("#####uart_scan_task receive no data:");
@@ -457,11 +532,14 @@ void AnalyzeControlData(uint8_t* Uart_From_MCU_Buffer,uint8_t command_resource,H
 	
 #endif
 		/*data check*/
+			hap_d("#####uart_scan_task receive len:%d data: ", Bufferlength);
+
 		for (int i=0;i<Bufferlength+1;i++)
 		{
 
-			hap_d("#####uart_scan_task receive len:%d ddd [%x]: \n", Bufferlength,uiUart_From_MCU_Buffer_Temp[i]);
+			hap_d("[%x]",uiUart_From_MCU_Buffer_Temp[i]);
 		}
+		hap_d("\n#####uart_scan_task receive over \n");
 		 		
 		/*   Data Check  */
 		sum_check = 0;
@@ -495,7 +573,6 @@ void i2c_powe_bd_rd(os_thread_arg_t data)
 	uint8_t  iic_From_MCU_Buffer_Temp[UART_FROM_MCU_BUFFER_SIZE];
 	int len;
 	const uint8_t read_info_buffer[]={0x55,0x02,0x02,0x02};
-	const uint8_t iic_write[4] = {0x55,0x02,0xa1,0xa1}; 
 	// unsigned char iic_write[15] = {0x54,0x0f,0xa5,0x30,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00}; 
 	// iic_write[14]=0xe4;
 	while (1) 
@@ -542,7 +619,7 @@ void i2c_powe_bd_rd(os_thread_arg_t data)
 #endif
 		uart_drv_write(uart_dev, read_info_buffer,sizeof(read_info_buffer));
 
-		os_thread_sleep(os_msec_to_ticks(1000));
+		os_thread_sleep(os_msec_to_ticks(9000));
 
 
 
